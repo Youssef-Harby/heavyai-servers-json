@@ -22,7 +22,7 @@ export const useConfigStore = defineStore('config', () => {
   const history = ref<HistoryEntry[]>([])
   const isModified = ref(false)
   
-  // Initialize from local storage if available
+  // Initialize from storage if available
   const initFromStorage = () => {
     try {
       // Load current config
@@ -138,8 +138,23 @@ export const useConfigStore = defineStore('config', () => {
   
   function restoreFromHistory(index: number) {
     if (index >= 0 && index < history.value.length) {
-      config.value = JSON.parse(JSON.stringify(history.value[index].config))
-      addToHistory('Restored from history')
+      const restoredConfig = JSON.parse(JSON.stringify(history.value[index].config));
+      config.value = restoredConfig;
+      
+      // Also update the notebook cards if present in the restored config
+      if (restoredConfig.feature_flags && restoredConfig.feature_flags['dev/sql_notebook_cards']) {
+        try {
+          notebookCards.value = JSON.parse(restoredConfig.feature_flags['dev/sql_notebook_cards'] as string);
+        } catch (e) {
+          console.error('Failed to parse notebook cards from restored config', e);
+          notebookCards.value = {};
+        }
+      } else {
+        notebookCards.value = {};
+      }
+      
+      isModified.value = true;
+      addToHistory('Restored from history');
     }
   }
   

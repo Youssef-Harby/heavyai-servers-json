@@ -50,6 +50,25 @@
         </div>
       </div>
       
+      <!-- Remote URL input -->
+      <div class="mb-6">
+        <div class="flex items-center space-x-2">
+          <input 
+            type="text" 
+            v-model="remoteUrl" 
+            placeholder="Enter remote JSON URL" 
+            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button 
+            @click="loadRemoteConfig" 
+            class="btn btn-primary"
+            :disabled="isLoading"
+          >
+            Load
+          </button>
+        </div>
+      </div>
+      
       <!-- Load sample data -->
       <div class="text-center">
         <button 
@@ -81,6 +100,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
+const remoteUrl = ref('')
 
 // Handle file selection from browse dialog
 const handleFileSelected = async (event: Event) => {
@@ -124,14 +144,52 @@ const processFile = async (file: File) => {
   }
 }
 
+// Load remote configuration
+const loadRemoteConfig = async () => {
+  if (!remoteUrl.value) {
+    errorMessage.value = 'Please enter a URL'
+    return
+  }
+
+  errorMessage.value = ''
+  isLoading.value = true
+  
+  try {
+    const response = await fetch(remoteUrl.value, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load configuration from ${remoteUrl.value}`)
+    }
+    
+    const configData = await response.json()
+    configStore.loadConfig(Array.isArray(configData) ? configData[0] : configData)
+    router.push('/editor')
+  } catch (error) {
+    if (error instanceof Error) {
+      errorMessage.value = error.message
+    } else {
+      errorMessage.value = 'An unknown error occurred'
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // Load the sample configuration
 const loadSampleData = async () => {
   errorMessage.value = ''
   isLoading.value = true
   
   try {
+    // Use import.meta.env.BASE_URL to get the correct path with the base URL
+    const sampleUrl = `${import.meta.env.BASE_URL}servers.json`
+    
     // Fetch the servers.json file
-    const response = await fetch('/servers.json')
+    const response = await fetch(sampleUrl)
     if (!response.ok) {
       throw new Error('Failed to load sample configuration')
     }
@@ -150,10 +208,14 @@ const loadSampleData = async () => {
   }
 }
 
-// Create a blob URL for the sample configuration
+// Check for URL config parameter
 onMounted(() => {
-  // Copy servers.json to public folder for sample data
-  // This would be done in a real application, but for this demo we'll
-  // just rely on the user loading their own file
+  const urlParams = new URLSearchParams(window.location.search)
+  const urlConfig = urlParams.get('urlConfig')
+  
+  if (urlConfig) {
+    remoteUrl.value = urlConfig
+    loadRemoteConfig()
+  }
 })
 </script>
